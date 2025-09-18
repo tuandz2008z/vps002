@@ -1,4 +1,43 @@
-    - name: Kiểm tra RDP service
+name: Windows VPS via RDP
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 9999
+
+    steps:
+    - name: Kiểm tra user hiện tại
+      run: net user
+
+    - name: Setup RDP Environment
       run: |
-        echo "=== Kiểm tra RDP Service ==="
-        Get-Service -Name TermService
+        echo "===== Bật RDP và cấu hình firewall ====="
+        Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        reg add "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" /v UserAuthentication /t REG_DWORD /d 0 /f
+
+        echo "===== Đổi password user ====="
+        net user runneradmin Rdp@12345
+
+    - name: Kiểm tra và khởi động RDP service
+      run: |
+        echo "=== Kiểm tra trạng thái dịch vụ RDP ==="
+        $service = Get-Service -Name TermService
+        if ($service.Status -ne 'Running') {
+          echo "RDP Service chưa chạy. Đang khởi động..."
+          Set-Service -Name TermService -StartupType Automatic
+          Start-Service -Name TermService
+        } else {
+          echo "RDP Service đã chạy sẵn sàng!"
+        }
+
+    - name: Download Cloudflared
+      run: |
+        curl -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+
+    - name: Run Cloudflare Tunnel
+      run: |
+        ./cloudflared.exe tunnel --url tcp://localhost:3389 --no-autoupdate --protocol quic
