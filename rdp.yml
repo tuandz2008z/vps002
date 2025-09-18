@@ -1,0 +1,33 @@
+name: Windows RDP Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Bật RDP và cấu hình firewall
+        run: |
+          echo "===== Bật RDP và cấu hình firewall ====="
+          Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          echo "===== Đã bật RDP thành công ====="
+
+      - name: Đổi mật khẩu user
+        run: |
+          echo "===== Đổi password user ====="
+          net user runneradmin Password123!
+
+      - name: Kiểm tra dịch vụ RDP
+        run: |
+          echo "=== Kiểm tra trạng thái dịch vụ RDP ==="
+          Get-Service -Name TermService
+
+      - name: Cài đặt Cloudflared
+        run: |
+          curl -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+
+      - name: Chạy Cloudflared Tunnel
+        run: |
+          ./cloudflared.exe tunnel --url tcp://localhost:3389 --no-autoupdate --protocol quic
